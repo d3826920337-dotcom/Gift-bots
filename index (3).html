@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Апгрейд подарков</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0d0f;--ring:#1a1a1f;--line:#26262c;--tx:#fff;--mut:#7a7a84;--gold:#ffc61a;--gold2:#ff8a00;--win:#4ade80;--lose:#f87171}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:Manrope,system-ui,sans-serif}
+body{padding:env(safe-area-inset-top,0) 16px env(safe-area-inset-bottom,0);display:flex;flex-direction:column;max-width:480px;margin:0 auto;overflow-x:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;padding:12px 4px;color:var(--mut);font-size:14px}
+.top b{color:var(--tx);font-family:Unbounded}
+.wheel{position:relative;width:min(86vw,360px);aspect-ratio:1;margin:8px auto 0}
+.wheel svg{width:100%;height:100%;overflow:visible}
+.lab{font:700 11px Unbounded;fill:#3a3a42;text-anchor:middle}
+#needle{transform-origin:150px 150px;transform-box:view-box;transition:transform 4s cubic-bezier(.12,.7,.1,1)}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.pct{font:700 clamp(34px,11vw,48px) Unbounded;letter-spacing:-1px}
+.sub{color:var(--mut);font-size:15px;margin-top:4px}
+.pct.win{color:var(--win)}.pct.lose{color:var(--lose)}
+.slots{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+.slot{position:relative;aspect-ratio:1/1.05;border-radius:32px;background:radial-gradient(circle at 50% 40%,rgba(255,198,26,.18),transparent 62%),#141417;border:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-end;padding:10px;color:var(--tx);font:inherit;cursor:pointer;overflow:hidden}
+.slot .em{position:absolute;top:14%;left:0;right:0;text-align:center;font-size:clamp(54px,18vw,78px);filter:grayscale(1) brightness(.25)}
+.slot.full .em{filter:none}
+.cap{background:#1b1b1f;border-radius:22px;padding:12px 14px;font-weight:700;font-size:15px;line-height:1.25;text-align:left;min-height:62px;display:flex;flex-direction:column;justify-content:center}
+.cap small{color:var(--mut);font-weight:500;margin-top:2px}
+.go{margin:18px 0 12px;border:0;border-radius:20px;padding:18px;font:700 16px Unbounded;color:#1a1200;background:linear-gradient(180deg,var(--gold),var(--gold2));cursor:pointer}
+.go:disabled{opacity:.3;cursor:default}
+.shop{background:none;border:1px solid var(--line);color:var(--mut);border-radius:16px;padding:12px;font:600 14px Manrope;margin-bottom:12px;cursor:pointer}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:5}
+.sheet.on{display:flex}
+.panel{background:#141417;width:100%;max-width:480px;margin:0 auto;border-radius:28px 28px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0));max-height:75vh;overflow:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.panel h3{margin:4px 4px 14px;font:700 16px Unbounded}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.it{background:#1b1b1f;border:1px solid var(--line);border-radius:20px;padding:12px 6px;text-align:center;color:var(--tx);font:inherit;cursor:pointer}
+.it .e{font-size:38px}.it .n{font-size:12px;margin-top:4px}.it .v{font:700 12px Unbounded;color:var(--gold);margin-top:4px}
+.it .price{font-size:11px;color:var(--mut);margin-top:2px}
+.it:disabled{opacity:.3}
+.empty{color:var(--mut);padding:18px 4px;line-height:1.5}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:10px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--mut);font:600 14px Manrope;cursor:pointer}
+.tabs button.on{background:var(--gold);color:#1a1200;border-color:var(--gold)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0));transform:translateX(-50%) translateY(20px);background:#222228;padding:14px 20px;border-radius:18px;opacity:0;transition:.25s;z-index:9;font-weight:700;text-align:center;max-width:90vw}
+.toast.on{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion:reduce){#needle{transition-duration:.01s!important}.panel{animation:none}}
+</style>
+</head>
+<body>
+<div class="top"><span id="who">Игрок</span><span>Баланс: <b id="bal">0</b> ⭐</span></div>
+
+<div class="wheel">
+  <svg viewBox="0 0 300 300" aria-hidden="true">
+    <circle cx="150" cy="150" r="146" fill="none" stroke="#15151a" stroke-width="2"/>
+    <circle cx="150" cy="150" r="116" fill="none" stroke="var(--ring)" stroke-width="44"/>
+    <circle id="arc" cx="150" cy="150" r="116" fill="none" stroke="url(#g)" stroke-width="44" stroke-dasharray="0 729" transform="rotate(90 150 150)"/>
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc61a"/><stop offset="1" stop-color="#ff8a00"/></linearGradient></defs>
+    <text class="lab" x="150" y="-6">100%</text><text class="lab" x="150" y="306">0%</text>
+    <text class="lab" x="-18" y="154">50%</text><text class="lab" x="318" y="154">50%</text>
+    <g id="needle"><line x1="150" y1="262" x2="150" y2="228" stroke="url(#g)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M150 214 L141 232 L159 232 Z" fill="#ffc61a"/><circle cx="150" cy="268" r="6" fill="#ff9a1a"/></g>
+  </svg>
+  <div class="center"><div class="pct" id="pct">0.00%</div><div class="sub" id="sub">Средний шанс</div></div>
+</div>
+
+<div class="slots">
+  <button class="slot" id="slotUse"><div class="em">🎁</div><div class="cap" id="capUse">Выберите подарок для использования</div></button>
+  <button class="slot" id="slotBoost"><div class="em">🎁</div><div class="cap" id="capBoost">Выберите подарок для буста</div></button>
+</div>
+
+<button class="go" id="go" disabled>Апгрейд</button>
+<button class="shop" id="shopBtn">Магазин подарков</button>
+
+<div class="sheet" id="sheet"><div class="panel" id="panel"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor && tg.setHeaderColor('#0d0d0f'); tg.setBackgroundColor && tg.setBackgroundColor('#0d0d0f'); }
+
+/* ---------- Настройки ---------- */
+const API = '';            // адрес твоего бота/сервера, например 'https://example.com/api'. Пусто = демо-режим
+const MAX_CHANCE = 90;     // максимум шанса в %
+const CATALOG = [          // каталог подарков (value — "стоимость", price — цена в магазине в ⭐)
+  {id:'bear',  e:'🧸', n:'Мишка',   v:15,  price:15},
+  {id:'heart', e:'💝', n:'Сердце',  v:25,  price:25},
+  {id:'rose',  e:'🌹', n:'Роза',    v:50,  price:50},
+  {id:'cake',  e:'🎂', n:'Торт',    v:100, price:100},
+  {id:'rocket',e:'🚀', n:'Ракета',  v:200, price:200},
+  {id:'ring',  e:'💍', n:'Кольцо',  v:400, price:400},
+  {id:'cup',   e:'🏆', n:'Кубок',   v:800, price:800},
+  {id:'diamond',e:'💎',n:'Алмаз',   v:1500,price:1500}
+];
+/* ---------- Состояние (в демо хранится в памяти; в продакшене — на сервере) ---------- */
+const state = {balance:500, inv:[{uid:1,id:'bear'},{uid:2,id:'bear'},{uid:3,id:'heart'},{uid:4,id:'rose'}], use:null, boost:null, uid:10, busy:false, angle:0};
+const $ = id => document.getElementById(id);
+const gift = id => CATALOG.find(g => g.id === id);
+const byUid = uid => state.inv.find(i => i.uid === uid);
+const uidName = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+if (uidName) $('who').textContent = uidName.first_name;
+
+/* ---------- Шанс ---------- */
+function chance() {
+  if (!state.use || !state.boost) return 0;
+  const u = gift(byUid(state.use).id).v, b = gift(byUid(state.boost).id).v;
+  return Math.min(MAX_CHANCE, Math.round(b / (u + b) * 10000) / 100);
+}
+function render() {
+  $('bal').textContent = state.balance;
+  const c = chance();
+  $('pct').textContent = c.toFixed(2) + '%';
+  $('pct').className = 'pct'; $('sub').textContent = 'Средний шанс';
+  $('arc').setAttribute('stroke-dasharray', (729 * c / 100) + ' 729');
+  [['use','Use','для использования'],['boost','Boost','для буста']].forEach(([k,K,t]) => {
+    const s = $('slot'+K), cap = $('cap'+K);
+    if (state[k]) { const g = gift(byUid(state[k]).id); s.classList.add('full'); s.querySelector('.em').textContent = g.e; cap.innerHTML = g.n + '<small>' + g.v + ' ⭐</small>'; }
+    else { s.classList.remove('full'); s.querySelector('.em').textContent = '🎁'; cap.textContent = 'Выберите подарок ' + (k==='use' ? 'для использования' : 'для буста'); }
+  });
+  $('go').disabled = state.busy || !(state.use && state.boost);
+}
+
+/* ---------- Окна выбора ---------- */
+function openSheet(html) { $('panel').innerHTML = html; $('sheet').classList.add('on'); }
+function closeSheet() { $('sheet').classList.remove('on'); }
+$('sheet').addEventListener('click', e => { if (e.target === $('sheet')) closeSheet(); });
+
+function pick(slot) {
+  if (state.busy) return;
+  const other = slot === 'use' ? state.boost : state.use;
+  const items = state.inv.filter(i => i.uid !== other);
+  if (!items.length) { openSheet('<h3>Инвентарь пуст</h3><div class="empty">Купи подарки в магазине, чтобы начать игру.</div>'); return; }
+  openSheet('<h3>' + (slot==='use' ? 'Подарок для использования' : 'Подарок для буста') + '</h3><div class="grid">' +
+    items.map(i => { const g = gift(i.id); return `<button class="it" data-u="${i.uid}"><div class="e">${g.e}</div><div class="n">${g.n}</div><div class="v">${g.v} ⭐</div></button>`; }).join('') + '</div>');
+  $('panel').querySelectorAll('.it').forEach(b => b.onclick = () => { state[slot] = +b.dataset.u; closeSheet(); render(); haptic('light'); });
+}
+$('slotUse').onclick = () => pick('use');
+$('slotBoost').onclick = () => pick('boost');
+
+function shop() {
+  openSheet('<h3>Магазин</h3><div class="grid">' + CATALOG.map(g =>
+    `<button class="it" data-id="${g.id}" ${state.balance < g.price ? 'disabled' : ''}><div class="e">${g.e}</div><div class="n">${g.n}</div><div class="price">${g.price} ⭐</div></button>`).join('') + '</div>');
+  $('panel').querySelectorAll('.it').forEach(b => b.onclick = async () => {
+    const g = gift(b.dataset.id);
+    const r = await api('buy', {id: g.id});
+    if (r.ok) { toast('Куплено: ' + g.e + ' ' + g.n); closeSheet(); render(); }
+  });
+}
+$('shopBtn').onclick = shop;
+
+/* ---------- Сервер / демо ---------- */
+async function api(action, data) {
+  if (API) {   // настоящий режим: все вычисления и рандом — на сервере бота
+    try {
+      const res = await fetch(API + '/' + action, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({initData: tg ? tg.initData : '', ...data})});
+      const j = await res.json();
+      if (j.inv) state.inv = j.inv;
+      if (j.balance != null) state.balance = j.balance;
+      return j;
+    } catch (e) { toast('Нет связи с сервером'); return {ok:false}; }
+  }
+  // демо-режим (случайность на клиенте — только для теста!)
+  if (action === 'buy') { const g = gift(data.id); if (state.balance < g.price) return {ok:false}; state.balance -= g.price; state.inv.push({uid: ++state.uid, id: g.id}); return {ok:true}; }
+  if (action === 'upgrade') {
+    const c = chance(), roll = Math.random() * 100, win = roll < c;
+    const u = gift(byUid(data.use).id); let prize = null;
+    state.inv = state.inv.filter(i => i.uid !== data.use && i.uid !== data.boost);
+    if (win) { const next = CATALOG.find(g => g.v > u.v) || u; prize = {uid: ++state.uid, id: next.id}; state.inv.push(prize); }
+    return {ok:true, win, roll, prize: prize && prize.id};
+  }
+}
+
+/* ---------- Игра ---------- */
+$('go').onclick = async () => {
+  if (state.busy) return;
+  state.busy = true; render(); haptic('medium');
+  const c = chance();
+  const r = await api('upgrade', {use: state.use, boost: state.boost});
+  if (!r.ok) { state.busy = false; render(); return; }
+  // roll (0..100) → угол. Выигрышный сектор: 0 .. c% от низа по часовой стрелке
+  const target = r.roll * 3.6;
+  state.angle += 360 * 5 + ((target - (state.angle % 360)) + 360) % 360;
+  $('needle').style.transform = `rotate(${state.angle}deg)`;
+  await new Promise(res => setTimeout(res, 4100));
+  const el = $('pct');
+  el.className = 'pct ' + (r.win ? 'win' : 'lose');
+  $('sub').textContent = r.win ? 'Победа! Получено: ' + gift(r.prize).e + ' ' + gift(r.prize).n : 'Не повезло — подарки сгорели';
+  haptic(r.win ? 'success' : 'error');
+  state.use = state.boost = null; state.busy = false;
+  setTimeout(() => { $('go').disabled = true; $('slotUse').classList.remove('full'); $('slotBoost').classList.remove('full'); render(); keepResult(el, r); }, 0);
+};
+function keepResult(el, r) { // оставить результат на экране до следующего выбора
+  $('pct').className = 'pct ' + (r.win ? 'win' : 'lose');
+  $('sub').textContent = r.win ? 'Победа! Получено: ' + gift(r.prize).e + ' ' + gift(r.prize).n : 'Не повезло — подарки сгорели';
+}
+
+function haptic(t) {
+  if (!tg || !tg.HapticFeedback) return;
+  if (t === 'success' || t === 'error') tg.HapticFeedback.notificationOccurred(t); else tg.HapticFeedback.impactOccurred(t);
+}
+let tt; function toast(m) { const e = $('toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 1800); }
+
+render();
+</script>
+</body>
+</html>
